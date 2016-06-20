@@ -1,0 +1,239 @@
+Package StupsCompiler;
+ 
+Helpers
+	//Ignore upper-, lowercase
+	a 			= ['a' + 'A'];		
+  	b 			= ['b' + 'B'];		
+  	c 			= ['c' + 'C'];
+  	d 			= ['d' + 'D'];
+  	e 			= ['e' + 'E'];
+  	f 			= ['f' + 'F'];
+  	g 			= ['g' + 'G'];
+  	h 			= ['h' + 'H'];
+  	i 			= ['i' + 'I'];
+  	j 			= ['j' + 'J'];
+  	k 			= ['k' + 'K'];
+  	l 			= ['l' + 'L'];
+  	m 			= ['m' + 'M'];
+  	n 			= ['n' + 'N'];
+  	o 			= ['o' + 'O'];
+  	p 			= ['p' + 'P'];
+  	q 			= ['q' + 'Q'];
+  	r 			= ['r' + 'R'];
+  	s 			= ['s' + 'S'];
+  	t 			= ['t' + 'T'];
+  	u 			= ['u' + 'U'];
+  	v 			= ['v' + 'V'];
+  	w 			= ['w' + 'W'];
+  	x 			= ['x' + 'X'];
+  	y 			= ['y' + 'Y'];
+  	z 			= ['z' + 'Z'];
+  	
+	//Tab, Line Feed, Carriage Return, blank, comments
+	all 		= [0 .. 127];
+	tab 		= 9;
+	lf 			= 10;
+	nolf 		= [all - lf];
+	cr 			= 13;
+	nocrlf 		= [nolf - cr];
+	curls 		= ['{' + '}'];
+	nocurls 	= [all - curls];
+	blank		= (' ' | tab | lf | cr);
+	comment 	= '{' nocurls* blank* '}';
+	commentline	= '//' nocrlf*;
+
+	//Letters + digits
+	letter   	= [['a' .. 'z'] + ['A' .. 'Z']];
+	first_digit = ['1'..'9'];		
+	digit 	 	= ['0' + first_digit];
+
+Tokens
+	//Datatypes, assign + others
+	number 		= '0' | first_digit digit*; 
+	var			= v a r;
+	type_int	= i n t e g e r;
+	type_bool	= b o o l e a n;
+	assign		= ':=';
+	colon 		= ':';
+	semicolon	= ';';
+	dot 		= '.';
+	comma 		= ',';
+	
+	//Operators
+	l_par		= '(';
+	r_par		= ')';
+	plus 		= '+';
+	minus 		= '-';
+	mult		= '*';
+	div 		= d i v;
+	mod 		= m o d;
+	equal		= '=';
+	less		= '<';
+	greater		= '>';
+	l_equal		= '<=';
+	g_equal		= '>=';
+	unequal		= '<>';
+	and			= a n d;
+	or			= o r;
+	xor 		= x o r;
+	not 		= n o t;
+	true		= t r u e;
+	false		= f a l s e;
+	
+	//Commands
+	program		= p r o g r a m;
+	begin 		= b e g i n;
+	while		= w h i l e;
+	do			= d o;
+	end 		= e n d;
+	break 		= b r e a k;
+	writeln		= w r i t e l n;
+	if			= i f;
+	then		= t h e n;
+	else		= e l s e;
+	
+	ident		= ('_' | letter)('_' | letter | digit | '$')*;
+	ignore 		= (blank | comment | commentline)*;				
+
+	
+Ignored Tokens
+	ignore;
+	
+Productions
+	pascal {-> expr} =
+	{pascal} program ident semicolon declaration* begin instructions end dot 			{-> New expr.pascal(ident, [declaration.expr], instructions.expr)};
+
+	declaration {-> expr} =
+	{declaration} 		var identifiers_decl colon type semicolon						{-> New expr.declaration(identifiers_decl.expr, type.expr)};
+	
+	identifiers_decl {-> expr} =
+	{ident} 			identifier 														{-> identifier.expr}
+  |	{identifiers_decl} 	identifiers_decl comma identifier 								{-> New expr.identifiers_decl(identifiers_decl.expr, identifier.expr)};
+	  
+	identifier {-> expr} =
+	{ident} 			ident															{-> New expr.ident(ident)};
+	
+	type {-> expr} = 
+	{type_bool} 		type_bool  														{-> New expr.type_bool(type_bool)}
+  | {type_int} 			type_int 														{-> New expr.type_int(type_int)};
+  
+    instructions {-> expr} =
+    {instruction} 		instruction?													{-> New expr.instruction([instruction.expr])}
+  | {instructions} 		instructions semicolon instruction?								{-> New expr.instructions(instructions.expr, [instruction.expr])};
+    
+    instruction {-> expr} = 
+    {instr_writeln} 	instr_writeln 													{-> instr_writeln.expr}
+  | {instr_break} 		break 															{-> New expr.instr_break(break)}
+  | {instr_begin_end} 	begin instructions end											{-> instructions.expr}
+  | {instr_assign} 		instr_assign													{-> instr_assign.expr}
+  | {ifthen}			ifthen															{-> ifthen.expr}
+  | {ifthenelse}		ifthenelse														{-> ifthenelse.expr}
+  | {while}				P.while															{-> while.expr};
+  
+    instruction_no_ifthen {-> expr} = 
+    {instr_writeln} 	instr_writeln 													{-> instr_writeln.expr}
+  | {instr_break} 		break 															{-> New expr.instr_break(break)}
+  | {instr_begin_end} 	begin instructions end											{-> instructions.expr}
+  | {instr_assign} 		instr_assign													{-> instr_assign.expr}
+  | {ifthenelse_no_ifthen} ifthenelse_no_ifthen											{-> ifthenelse_no_ifthen.expr}
+  | {while_no_ifthen} 	while_no_ifthen													{-> while_no_ifthen.expr};
+
+	instr_writeln {-> expr} =
+	{instr_writeln} 	writeln l_par expression_t1 r_par								{-> New expr.instr_writeln(expression_t1.expr)};
+	
+	instr_assign {-> expr} =
+	{instr_assign} 		ident assign expression_t1										{-> New expr.instr_assign(ident, expression_t1.expr)};
+	
+	expression_t1 {-> expr} =
+	{t2} 				expression_t2													{-> expression_t2.expr}
+  | {compare}			[left]:expression_t1 [compare]:compare [right]:expression_t2	{-> New expr.compare(left.expr, compare.expr, right.expr)};
+	
+	expression_t2 {-> expr} =
+	{t3} 				expression_t3													{-> expression_t3.expr}
+  | {operator_plus}		[left]:expression_t2 plus [right]:expression_t3  				{-> New expr.operator_plus(left.expr, right.expr)}
+  | {operator_minus}	[left]:expression_t2 minus [right]:expression_t3  				{-> New expr.operator_minus(left.expr, right.expr)}
+  | {operator_or}		[left]:expression_t2 or [right]:expression_t3  					{-> New expr.operator_or(left.expr, right.expr)}
+  | {operator_xor}		[left]:expression_t2 xor [right]:expression_t3  				{-> New expr.operator_xor(left.expr, right.expr)};
+	
+	expression_t3 {-> expr} =
+	{t4} 				expression_t4													{-> expression_t4.expr}
+  | {operator_mult}		[left]:expression_t3 mult [right]:expression_t4  				{-> New expr.operator_mult(left.expr, right.expr)}
+  | {operator_div}		[left]:expression_t3 div [right]:expression_t4  				{-> New expr.operator_div(left.expr, right.expr)}
+  | {operator_mod}	 	[left]:expression_t3 mod [right]:expression_t4  				{-> New expr.operator_mod(left.expr, right.expr)}
+  | {operator_and}		[left]:expression_t3 and [right]:expression_t4  				{-> New expr.operator_and(left.expr, right.expr)};
+	
+	expression_t4 {-> expr} =					
+	{number} 			number 															{-> New expr.number(number)}
+  | {identifier} 		identifier 														{-> identifier.expr}
+  | {true}				true															{-> New expr.true(true)}
+  | {false}				false															{-> New expr.false(false)}
+  | {plus_unary}		plus expression_t4												{-> New expr.plus_unary(expression_t4.expr)}
+  | {minus_unary}		minus expression_t4												{-> New expr.minus_unary(expression_t4.expr)}
+  | {not}				not expression_t4												{-> New expr.not(expression_t4.expr)}
+  | {pars}				l_par expression_t1 r_par										{-> expression_t1.expr};
+  
+    compare {-> expr} =
+    {equal} 			equal															{-> New expr.equal(equal)}
+  | {less} 				less															{-> New expr.less(less)}
+  | {greater}			greater															{-> New expr.greater(greater)}
+  | {l_equal}			l_equal															{-> New expr.l_equal(l_equal)}
+  | {g_equal}			g_equal															{-> New expr.g_equal(g_equal)}
+  | {unequal}			unequal															{-> New expr.unequal(unequal)};
+  
+  	ifthen {-> expr} =
+  	{ifthen}			if 		[expr]:expression_t1 
+  						then	[instr]:instruction										{-> New expr.ifthen(expr.expr, instr.expr)}; 
+  	
+  	ifthenelse {-> expr} =
+  	{ifthenelse}		if 		[expr]:expression_t1 
+  						then	[instr1]:instruction_no_ifthen 
+  						else	[instr2]:instruction 									{-> New expr.ifthenelse(expr.expr, instr1.expr, instr2.expr)};
+  	
+  	ifthenelse_no_ifthen {-> expr} =
+  	{ifthenelse_no_ifthen}
+  						if 		[expr]:expression_t1 
+  						then 	[instr1]:instruction_no_ifthen 
+  						else 	[instr2]:instruction_no_ifthen 							{-> New expr.ifthenelse(expr.expr, instr1.expr, instr2.expr)};
+  						
+  	while {-> expr} =
+  	{while} 			T.while [expr]:expression_t1 do [instr]:instruction				{-> New expr.while(expr.expr, instr.expr)};
+  	
+  	while_no_ifthen {-> expr} =
+  	{while_no_ifthen}	T.while [expr]:expression_t1 do [instr]:instruction_no_ifthen	{-> New expr.while(expr.expr, instr.expr)};
+		 		
+Abstract Syntax Tree
+	expr = {pascal} 				ident [declaration]: expr* [instruction]: expr
+		 | {declaration}			[left]: expr [right]:expr
+		 | {type_bool} 				type_bool
+		 | {type_int} 				type_int
+		 | {identifiers_decl}		[left]: expr [right]: expr
+		 | {ident}					ident
+		 | {instruction}			expr*
+		 | {instructions}			[left]: expr [right]: expr*
+		 | {instr_writeln}			expr
+		 | {instr_break}        	break
+		 | {instr_assign}			ident expr
+		 | {compare}   				[left]:expr [compare]:expr [right]:expr
+		 | {operator_plus} 			[left]:expr [right]:expr
+		 | {operator_minus}			[left]:expr [right]:expr
+		 | {operator_or} 			[left]:expr [right]:expr
+		 | {operator_xor} 			[left]:expr [right]:expr
+		 | {operator_mult} 			[left]:expr [right]:expr
+		 | {operator_div}			[left]:expr [right]:expr
+		 | {operator_mod} 			[left]:expr [right]:expr
+		 | {operator_and} 			[left]:expr [right]:expr
+		 | {number} 				number
+		 | {true}					true
+		 | {false}					false
+		 | {plus_unary}				expr
+		 | {minus_unary}			expr
+		 | {not}					expr
+		 | {equal}					equal
+		 | {less}					less
+		 | {greater}				greater
+		 | {l_equal}				l_equal
+		 | {g_equal}				g_equal
+		 | {unequal}				unequal
+		 | {ifthen}					[expr]:expr [instr]:expr
+		 | {ifthenelse}				[expr]:expr [instr1]:expr [instr2]: expr
+		 | {while}					[expr]:expr [instr]:expr;
